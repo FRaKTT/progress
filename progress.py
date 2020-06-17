@@ -6,16 +6,18 @@ from config import PROGRESS_FILE
 
 
 def get_records_from_file(filename, date_val_splitter='', record_pattern=None):
-    """Read file and fill dict [str, int]"""
+    """Read file and fill 2 lists: dates [str] and quantities [int]"""
     if not record_pattern:
         record_pattern = r'\d{4}\.\d{2}\.\d{2}\s*' + date_val_splitter + r'\s*\d+\s*'  # '2020.04.18 431'
-    records = {}
+    dates = []
+    quantities = []
     for line in open(filename):
         line = line.strip()
         if re.fullmatch(record_pattern, line):
-            record_date, record_value = (field.strip() for field in line.split(date_val_splitter))
-            records[record_date] = int(record_value)
-    return records
+            record_date, record_quantity = (field.strip() for field in line.split(date_val_splitter))
+            dates.append(record_date)
+            quantities.append(int(record_quantity))
+    return dates, quantities
 
 
 def get_total(filename=PROGRESS_FILE, total_val_splitter=''):
@@ -32,30 +34,31 @@ def get_total(filename=PROGRESS_FILE, total_val_splitter=''):
 
 class Progress:
     def __init__(self, filename, val_splitter='', record_pattern=None, date_format_str='%Y.%m.%d'):
-        self.records_str = get_records_from_file(filename, val_splitter, record_pattern)
+        self.dates, self.quantities = get_records_from_file(filename, val_splitter, record_pattern)
         self.total = get_total(filename, val_splitter)
 
         # convert date from string to datetime.date format
-        self.records_dt = {datetime.strptime(date, date_format_str).date(): value  for date, value in self.records_str.items()}
+        self.dates_dt = [datetime.strptime(date, date_format_str).date() for date in self.dates]
         # and add current date if it doesn't exist
         today = date.today()
-        last_quantity = self.records_dt[max(self.records_dt.keys())]
-        self.records_dt[today] = last_quantity
+        if self.dates_dt[-1] != today: ####
+            last_quantity = self.quantities[-1]
+            self.dates_dt.append(today)
+            self.quantities.append(last_quantity)
 
         # convert date to format suitable for plotting
-        self.records_mdate = {mdates.date2num(date_dt): value  for date_dt, value in self.records_dt.items()}
-
+        self.dates_mdate = [mdates.date2num(date_dt) for date_dt in self.dates_dt]
 
 
     def plot(self):
         """Plot graph of progress"""
         plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y.%m.%d'))
         # plt.gca().xaxis.set_major_locator(mdates.DayLocator())
-        plt.plot(self.records_mdate.keys(), self.records_mdate.values(), marker='o')
+        plt.plot(self.dates_mdate, self.quantities, marker='o')
         # plt.gcf().autofmt_xdate()
 
         if self.total: 
-            plt.hlines(self.total, min(self.records_mdate.keys()), max(self.records_mdate.keys()), colors='r')
+            plt.hlines(self.total, min(self.dates_mdate), max(self.dates_mdate), colors='r')
 
         # ToDo: plot line of progress (average and week)
 
@@ -65,17 +68,32 @@ class Progress:
         plt.show()
 
 
+    def quantity_for_date(self, target_date):
+        """Find quantity that should correspond for arbitrary date"""
+        try:
+            i = self.dates_dt.index(target_date)
+            return self.quantities[i]
+        except ValueError:  # no such date in dates_dt
+            quantity = 0
+            for i, date in enumerate(self.dates_dt):
+                if date <= target_date:
+                    quantity = self.quantities[i]
+                else:
+                    break
+            return quantity
+
+
     def calc_speed(self, start_dt=None, end_dt=None):
         """Returns progress speed in quantities per day"""
         if not start_dt:
-            start_dt = min(self.records_dt.keys())
+            start_dt = self.dates_dt[0]
         if not end_dt:
-            end_dt = max(self.records_dt.keys())
-        delta_quantity = self.records_dt[end_dt] - self.records_dt[start_dt]
+            end_dt = self.dates_dt[-1]
+        delta_quantity = self.quantity_for_date(end_dt) - self.quantity_for_date(start_dt)
         delta_dt = end_dt - start_dt  # datetime.timedelta type
         return delta_quantity / delta_dt.days
 
-    
+
     def calc_speed_last_n_days(self, last_n_days):
         """Returns progress speed during last N days"""
         today = date.today()
@@ -86,8 +104,7 @@ class Progress:
 
     def calc_eta(self, last_n_days=None):
         """Estimated time for achievement total value"""
-        last_dt = max(self.records_dt.keys())
-        quantity_left = self.total - self.records_dt[last_dt]
+        quantity_left = self.total - self.quantities[-1]
         if last_n_days:  # uses speed during last N days
             speed = self.calc_speed_last_n_days(last_n_days)
         else:
@@ -99,11 +116,11 @@ class Progress:
 if __name__ == '__main__':
     progr = Progress(PROGRESS_FILE, '-')
     speed_av = progr.calc_speed()
-    # speed_week = progr.calc_speed_last_n_days(7)
+    speed_week = progr.calc_speed_last_n_days(7)
     eta_av = progr.calc_eta()
-    # eta_week = progr.calc_eta(7)
+    eta_week = progr.calc_eta(7)
     print(f'average speed: {speed_av:.2f} pages/day')
-    # print(f'week speed: {speed_av:.2f} pages/day')
+    print(f'week speed: {speed_week:.2f} pages/day')
     print(f'eta (average): {eta_av:.2f} days')
-    # print(f'eta (week): {eta_week:.2f} days')
+    print(f'eta (week): {eta_week:.2f} days')
     progr.plot()
