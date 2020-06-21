@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from datetime import datetime, date, timedelta
 from config import PROGRESS_FILE
+import argparse
 
 
 def get_records_from_file(filename, date_val_splitter='', record_pattern=None):
@@ -74,7 +75,7 @@ class Progress:
             i = self.dates_dt.index(target_date)
             return self.quantities[i]
         except ValueError:  # no such date in dates_dt
-            quantity = 0
+            quantity = self.quantities[0]  # default start quantity
             for i, date in enumerate(self.dates_dt):
                 if date <= target_date:
                     quantity = self.quantities[i]
@@ -114,7 +115,12 @@ class Progress:
 
 
 if __name__ == '__main__':
-    progr = Progress(PROGRESS_FILE, '-')
+    parser = argparse.ArgumentParser(description='Analyse and plot the progress.')
+    parser.add_argument('--file', nargs='?', default=PROGRESS_FILE, help='File with progress data')
+    args = parser.parse_args()
+    progress_file = args.file
+
+    progr = Progress(progress_file, '-')
     speed_av = progr.calc_speed()
     speed_week = progr.calc_speed_last_n_days(7)
     eta_av = progr.calc_eta()
