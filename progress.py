@@ -9,7 +9,7 @@ import argparse
 def get_records_from_file(filename, date_val_splitter='', record_pattern=None):
     """Read file and fill 2 lists: dates [str] and quantities [int]"""
     if not record_pattern:
-        record_pattern = r'\d{4}\.\d{2}\.\d{2}\s*' + date_val_splitter + r'\s*\d+\s*'  # '2020.04.18 431'
+        record_pattern = r'\d{4}\.\d{2}\.\d{2}\s*' + date_val_splitter + r'\s*\d+\s*'  # example: '2020.04.18 431'
     dates = []
     quantities = []
     for line in open(filename):
@@ -23,7 +23,7 @@ def get_records_from_file(filename, date_val_splitter='', record_pattern=None):
 
 def get_total(filename=PROGRESS_FILE, total_val_splitter=''):
     """Searching record about total value"""
-    record_pattern = r'total - \d+'  # 'total - 800'
+    record_pattern = r'total\s*' + total_val_splitter + r'\s*\d+\s*'  # example: 'total - 800'
     total = None
     for line in open(filename):
         line = line.strip()
